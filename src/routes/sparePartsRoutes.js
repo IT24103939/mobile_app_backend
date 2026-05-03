@@ -1,5 +1,6 @@
 const express = require("express");
 const SparePart = require("../models/SparePart");
+const User = require("../models/User");
 const { requireAuth } = require("../middleware/auth");
 const { mapDoc, mapDocs } = require("../utils/mapDoc");
 
@@ -33,6 +34,32 @@ router.get("/supplier/:supplierId", async (req, res, next) => {
   try {
     const spareParts = await SparePart.find({ supplierId: req.params.supplierId }).sort({ createdAt: -1 });
     return res.json(mapDocs(spareParts));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * Get supplier public profile by supplierId
+ * GET /api/spare-parts/supplier/:supplierId/profile
+ * MUST be before /:id to avoid route shadowing
+ */
+router.get("/supplier/:supplierId/profile", async (req, res, next) => {
+  try {
+    const supplier = await User.findById(req.params.supplierId).select("-password");
+    if (!supplier) {
+      return res.status(404).json({ message: "Supplier not found" });
+    }
+    const parts = await SparePart.find({ supplierId: req.params.supplierId });
+    return res.json({
+      id: supplier._id.toString(),
+      fullName: supplier.fullName,
+      email: supplier.email || null,
+      phone: supplier.phone || null,
+      role: supplier.role,
+      joinedDate: supplier.createdAt,
+      totalParts: parts.length,
+    });
   } catch (error) {
     return next(error);
   }
@@ -110,30 +137,6 @@ router.delete("/:id", requireAuth, async (req, res, next) => {
   }
 });
 
-/**
- * Get supplier public profile by supplierId
- * GET /api/spare-parts/supplier/:supplierId/profile
- */
-const User = require("../models/User");
-router.get("/supplier/:supplierId/profile", async (req, res, next) => {
-  try {
-    const supplier = await User.findById(req.params.supplierId).select("-password");
-    if (!supplier) {
-      return res.status(404).json({ message: "Supplier not found" });
-    }
-    const parts = await SparePart.find({ supplierId: req.params.supplierId });
-    return res.json({
-      id: supplier._id.toString(),
-      fullName: supplier.fullName,
-      email: supplier.email || null,
-      phone: supplier.phone || null,
-      role: supplier.role,
-      joinedDate: supplier.createdAt,
-      totalParts: parts.length,
-    });
-  } catch (error) {
-    return next(error);
-  }
-});
+
 
 module.exports = router;
